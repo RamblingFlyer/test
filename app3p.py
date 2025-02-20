@@ -222,25 +222,81 @@ def show_predictions():
             predictions = model.predict(X_test)
             future_predictions = model.predict_future(X_test[-3:], years=5)
 
-            # Display results
+            # Display results with enhanced styling
             st.write("### Model Performance")
-            st.write(f"R² Score: {r2_score(y_test, predictions):.4f}")
-            st.write(f"MSE: {mean_squared_error(y_test, predictions):.4f}")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("R² Score", f"{r2_score(y_test, predictions):.4f}")
+            with col2:
+                st.metric("MSE", f"{mean_squared_error(y_test, predictions):.4f}")
 
-            # Plot predictions
+            # Plot predictions with enhanced styling
             fig = go.Figure()
-            fig.add_trace(go.Scatter(y=y_test, name='Actual'))
-            fig.add_trace(go.Scatter(y=predictions, name='Predicted'))
-            st.plotly_chart(fig)
+            fig.add_trace(go.Scatter(
+                y=y_test,
+                name='Actual',
+                mode='lines+markers',
+                line=dict(color='#1f77b4', width=2)
+            ))
+            fig.add_trace(go.Scatter(
+                y=predictions,
+                name='Predicted',
+                mode='lines+markers',
+                line=dict(color='#ff7f0e', width=2, dash='dash')
+            ))
+            fig.update_layout(
+                title='Model Predictions vs Actual Values',
+                xaxis_title='Sample Index',
+                yaxis_title='Water Level',
+                template='plotly_white',
+                hovermode='x unified',
+                showlegend=True,
+                legend=dict(
+                    orientation='h',
+                    yanchor='bottom',
+                    y=1.02,
+                    xanchor='right',
+                    x=1
+                ),
+                margin=dict(l=60, r=30, t=50, b=50)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-            # Display future predictions
+            # Display future predictions with enhanced styling
             st.write("### Future Predictions")
             years = range(2024, 2029)
             future_df = pd.DataFrame({
                 'Year': years,
                 'Predicted_Water_Level': future_predictions
             })
-            st.write(future_df)
+
+            fig_future = go.Figure()
+            fig_future.add_trace(go.Scatter(
+                x=future_df['Year'],
+                y=future_df['Predicted_Water_Level'],
+                mode='lines+markers',
+                name='Future Predictions',
+                line=dict(color='#2ca02c', width=2)
+            ))
+            fig_future.update_layout(
+                title='Water Level Predictions (2024-2028)',
+                xaxis_title='Year',
+                yaxis_title='Predicted Water Level',
+                template='plotly_white',
+                hovermode='x unified',
+                showlegend=True,
+                xaxis=dict(dtick=1),
+                margin=dict(l=60, r=30, t=50, b=50)
+            )
+            st.plotly_chart(fig_future, use_container_width=True)
+
+            # Display prediction table with styling
+            st.write("### Detailed Predictions")
+            st.dataframe(
+                future_df.style.format({
+                    'Predicted_Water_Level': '{:.2f}'
+                })
+            )
 
 # Visualization page
 def show_visualization():
@@ -250,24 +306,95 @@ def show_visualization():
     if uploaded_file is not None:
         data = pd.read_csv(uploaded_file)
         
+        # Select plot type
+        plot_type = st.selectbox("Select Plot Type", ['Scatter Plot', 'Line Plot', 'Bar Plot', 'Pie Chart', 'Box Plot', 'Histogram'])
+        
         # Select columns for visualization
         numeric_columns = data.select_dtypes(include=[np.number]).columns
+        categorical_columns = data.select_dtypes(include=['object']).columns
         
-        # Scatter plot
-        st.write("### Scatter Plot")
-        x_axis = st.selectbox("X-axis", numeric_columns)
-        y_axis = st.selectbox("Y-axis", numeric_columns)
+        if plot_type == 'Scatter Plot':
+            st.write("### Scatter Plot")
+            x_axis = st.selectbox("X-axis", numeric_columns)
+            y_axis = st.selectbox("Y-axis", numeric_columns)
+            
+            fig = px.scatter(data, x=x_axis, y=y_axis,
+                             title=f'{x_axis} vs {y_axis}',
+                             template='plotly_white')
+            fig.update_traces(marker=dict(size=8))
+            
+        elif plot_type == 'Line Plot':
+            st.write("### Line Plot")
+            x_axis = st.selectbox("X-axis", data.columns)
+            y_axis = st.selectbox("Y-axis", numeric_columns)
+            
+            fig = px.line(data, x=x_axis, y=y_axis,
+                          title=f'{y_axis} Over {x_axis}',
+                          template='plotly_white')
+            fig.update_traces(mode='lines+markers')
+            
+        elif plot_type == 'Bar Plot':
+            st.write("### Bar Plot")
+            x_axis = st.selectbox("X-axis (Categories)", data.columns)
+            y_axis = st.selectbox("Y-axis (Values)", numeric_columns)
+            orientation = st.selectbox("Orientation", ['vertical', 'horizontal'])
+            
+            fig = px.bar(data, x=x_axis if orientation == 'vertical' else y_axis,
+                         y=y_axis if orientation == 'vertical' else x_axis,
+                         title=f'Bar Plot of {y_axis} by {x_axis}',
+                         template='plotly_white',
+                         orientation='v' if orientation == 'vertical' else 'h')
+            
+        elif plot_type == 'Pie Chart':
+            st.write("### Pie Chart")
+            value_column = st.selectbox("Values", numeric_columns)
+            name_column = st.selectbox("Categories", data.columns)
+            
+            fig = px.pie(data, values=value_column, names=name_column,
+                         title=f'Distribution of {value_column} by {name_column}',
+                         template='plotly_white')
+            
+        elif plot_type == 'Box Plot':
+            st.write("### Box Plot")
+            y_axis = st.selectbox("Values", numeric_columns)
+            x_axis = st.selectbox("Categories (optional)", ['None'] + list(data.columns))
+            
+            if x_axis == 'None':
+                fig = px.box(data, y=y_axis,
+                            title=f'Box Plot of {y_axis}',
+                            template='plotly_white')
+            else:
+                fig = px.box(data, x=x_axis, y=y_axis,
+                            title=f'Box Plot of {y_axis} by {x_axis}',
+                            template='plotly_white')
+            
+        else:  # Histogram
+            st.write("### Histogram")
+            column = st.selectbox("Select Column", numeric_columns)
+            bins = st.slider("Number of Bins", min_value=5, max_value=100, value=30)
+            
+            fig = px.histogram(data, x=column,
+                              title=f'Histogram of {column}',
+                              template='plotly_white',
+                              nbins=bins)
         
-        fig = px.scatter(data, x=x_axis, y=y_axis)
-        st.plotly_chart(fig)
-        
-        # Line plot
-        st.write("### Line Plot")
-        time_column = st.selectbox("Time Column", data.columns)
-        value_column = st.selectbox("Value Column", numeric_columns)
-        
-        fig = px.line(data, x=time_column, y=value_column)
-        st.plotly_chart(fig)
+        # Apply consistent styling to all plots
+        fig.update_layout(
+            xaxis=dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='LightGray'
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='LightGray',
+                title_standoff=25
+            ),
+            hovermode='closest',
+            margin=dict(l=60, r=30, t=50, b=50)
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 # Main app logic
 if page == 'Home':
